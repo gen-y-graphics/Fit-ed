@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0C0E">
+<title>Fit'ed — Video Link Builder</title>
+<style>
+:root{
+  --bg:#0B0C0E; --card:#15171B; --card2:#1D2026; --line:#2A2E36;
+  --text:#EDEAE4; --dim:#9AA0AA; --accent:#D8A657; --good:#6FBF7F; --bad:#E0705F;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;}
+body{padding-bottom:env(safe-area-inset-bottom)}
+
+header{position:sticky;top:0;z-index:20;background:rgba(11,12,14,.94);
+  backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid var(--line);
+  padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;}
+.htop{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+h1{margin:0;font-size:17px;font-weight:650;letter-spacing:.2px}
+.count{font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar{height:4px;background:var(--line);border-radius:3px;margin-top:10px;overflow:hidden}
+.fill{height:100%;background:var(--accent);width:0;transition:width .3s ease}
+
+main{padding:16px;max-width:640px;margin:0 auto}
+
+.crumb{font-size:12px;letter-spacing:.7px;text-transform:uppercase;color:var(--accent);
+  font-weight:650;margin-bottom:6px}
+.exname{font-size:26px;font-weight:680;line-height:1.15;margin:0 0 8px;letter-spacing:-.3px}
+.meta{font-size:14px;color:var(--dim);margin-bottom:4px}
+.cue{font-size:14px;color:var(--dim);font-style:italic;margin-top:8px;
+  padding-left:11px;border-left:2px solid var(--line)}
+.optflag{display:inline-block;font-size:11px;letter-spacing:.5px;text-transform:uppercase;
+  background:var(--card2);color:var(--dim);padding:3px 8px;border-radius:20px;margin-bottom:8px;font-weight:600}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px;margin-top:16px}
+
+button{font:inherit;cursor:pointer;border:none;border-radius:11px;font-weight:600}
+.btn{display:block;width:100%;padding:14px;background:var(--card2);color:var(--text);
+  border:1px solid var(--line);text-align:center;margin-top:10px;font-size:15px}
+.btn:active{opacity:.7}
+.btn.gold{background:var(--accent);color:#14150F;border-color:var(--accent)}
+.btn.ghost{background:transparent}
+
+label{display:block;font-size:12px;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--dim);font-weight:650;margin-bottom:7px}
+input[type=text]{width:100%;padding:13px;font:inherit;font-size:16px;background:var(--bg);
+  color:var(--text);border:1px solid var(--line);border-radius:11px;outline:none}
+input[type=text]:focus{border-color:var(--accent)}
+
+.status{font-size:13px;margin-top:9px;display:flex;align-items:center;gap:7px;min-height:19px}
+.status.ok{color:var(--good)} .status.err{color:var(--bad)} .status.wait{color:var(--dim)}
+
+.frame{margin-top:13px;border-radius:11px;overflow:hidden;background:#000;
+  aspect-ratio:16/9;display:none}
+.frame.on{display:block}
+.frame iframe{width:100%;height:100%;border:0;display:block}
+
+.nav{display:flex;gap:10px;margin-top:18px}
+.nav .btn{margin-top:0;flex:1}
+
+.jump{margin-top:26px;border-top:1px solid var(--line);padding-top:16px}
+.jump h2{font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:var(--dim);
+  margin:0 0 11px;font-weight:650}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px}
+.dot{aspect-ratio:1;border-radius:9px;background:var(--card2);border:1px solid var(--line);
+  color:var(--dim);font-size:12px;font-weight:650;display:flex;align-items:center;
+  justify-content:center;font-variant-numeric:tabular-nums}
+.dot.done{background:var(--good);color:#0C1A0F;border-color:var(--good)}
+.dot.skip{background:var(--card2);color:var(--dim);opacity:.45}
+.dot.here{outline:2px solid var(--accent);outline-offset:1px}
+
+.done-panel{text-align:center;padding:30px 0}
+.done-panel .big{font-size:44px;margin-bottom:8px}
+textarea{width:100%;height:150px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:var(--bg);color:var(--text);border:1px solid var(--line);
+  border-radius:11px;padding:12px;margin-top:12px;resize:vertical}
+.note{font-size:13px;color:var(--dim);margin-top:14px;line-height:1.5}
+.hide{display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="htop">
+    <h1>Video Link Builder</h1>
+    <div class="count" id="count">—</div>
+  </div>
+  <div class="bar"><div class="fill" id="fill"></div></div>
+</header>
+
+<main>
+  <div id="stage"></div>
+
+  <div class="jump" id="jumpWrap">
+    <h2>Jump to any exercise</h2>
+    <div class="grid" id="grid"></div>
+    <button class="btn ghost" id="exportBtn">Export my links</button>
+    <button class="btn ghost" id="importBtn">Import saved links</button>
+  </div>
+</main>
+
+<script>
+const EXERCISES = [{"name":"Rowing machine or bike","day":"Upper Push","block":"Warm-up","detail":"5 min","cue":"Get warm, not tired.","opt":false},{"name":"Band pull-apart","day":"Upper Push","block":"Warm-up","detail":"2 × 20","cue":"Wakes up the rear deltoid before pressing.","opt":false},{"name":"Push-up","day":"Upper Push","block":"Warm-up","detail":"2 × 12","cue":"Two ramp-up sets on the bench count as part of this.","opt":false},{"name":"Barbell bench press","day":"Upper Push","block":"Main","detail":"4 × 6–8 reps","cue":"Add weight when you hit 8 reps on all four sets.","opt":false},{"name":"Seated DB shoulder press","day":"Upper Push","block":"Main","detail":"3 × 8–10 reps","cue":"Bench at 80 to 85 degrees, not fully vertical.","opt":false},{"name":"Incline DB press","day":"Upper Push","block":"Main","detail":"3 × 10–12 reps","cue":"Stop one rep short of a grinder here.","opt":false},{"name":"Cable lateral raise","day":"Upper Push","block":"Accessory","detail":"3 × 12–15 reps","cue":"Lead with the elbow, not the hand.","opt":false},{"name":"Overhead cable triceps extension","day":"Upper Push","block":"Accessory","detail":"3 × 10–12 reps","cue":"Full stretch at the bottom is the point.","opt":false},{"name":"Rope triceps pushdown","day":"Upper Push","block":"Accessory","detail":"3 × 12–15 reps","cue":"Last set to technical failure.","opt":false},{"name":"Cable crunch","day":"Upper Push","block":"Core","detail":"3 × 12–15 reps","cue":"Bend at the spine, not the hips.","opt":false},{"name":"Assault bike or rower","day":"HIIT","block":"Warm-up","detail":"8 min","cue":"Finish the warm-up sweating lightly.","opt":false},{"name":"Leg swings and hip openers","day":"HIIT","block":"Warm-up","detail":"2 min","cue":"Front-to-back and side-to-side.","opt":false},{"name":"All-out interval","day":"HIIT","block":"Intervals","detail":"10 rounds","cue":"Assault bike, rower, or treadmill sprints. Pick one and keep it for the phase so the numbers compare.","opt":false},{"name":"Electrolytes during","day":"HIIT","block":"Intervals","detail":"20–30 fl oz","cue":"Sodium demand is highest on this day of the week.","opt":true},{"name":"Easy spin or walk","day":"HIIT","block":"Cooldown","detail":"5 min","cue":"Heart rate under 120 bpm before you leave.","opt":false},{"name":"Hanging leg raise","day":"HIIT","block":"Cooldown","detail":"3 × 12–15 reps","cue":"Optional core finisher.","opt":false},{"name":"Bike","day":"Lower Body","block":"Warm-up","detail":"5 min","cue":"","opt":false},{"name":"Bodyweight squat","day":"Lower Body","block":"Warm-up","detail":"2 × 15","cue":"Sit into the bottom position and hold a beat.","opt":false},{"name":"Glute bridge","day":"Lower Body","block":"Warm-up","detail":"2 × 15","cue":"Two light ramp-up sets on the bar count here.","opt":false},{"name":"Barbell back squat","day":"Lower Body","block":"Main","detail":"4 × 6–8 reps","cue":"The heaviest lift of the week. Take the full rest.","opt":false},{"name":"Romanian deadlift","day":"Lower Body","block":"Main","detail":"3 × 8–10 reps","cue":"Stop the bar where the hamstring stretch stops, not at the floor.","opt":false},{"name":"Bulgarian split squat","day":"Lower Body","block":"Main","detail":"3 × 10–12 reps each leg","cue":"Front shin near vertical for more glute, forward for more quad.","opt":false},{"name":"Leg press","day":"Lower Body","block":"Accessory","detail":"3 × 12–15 reps","cue":"Feet mid-platform, shoulder width.","opt":false},{"name":"Seated leg curl","day":"Lower Body","block":"Accessory","detail":"3 × 12–15 reps","cue":"Seated beats lying for hamstring growth at long lengths.","opt":false},{"name":"Standing calf raise","day":"Lower Body","block":"Accessory","detail":"4 × 12–15 reps","cue":"Two-second pause at the bottom.","opt":false},{"name":"Zone 2 cardio","day":"Zone 2 Cardio","block":"Session","detail":"45–60 min","cue":"Zone 2 is roughly 60 to 70 percent of a 188 bpm estimated maximum. You should be able to hold a conversation the whole way.","opt":false},{"name":"Modality","day":"Zone 2 Cardio","block":"Session","detail":"Pick one","cue":"Incline walking is the easiest to hold steady and the kindest to the knees.","opt":true},{"name":"Log it","day":"Zone 2 Cardio","block":"Session","detail":"Every session","cue":"Average heart rate matters more than distance here.","opt":true},{"name":"Infrared sauna","day":"Zone 2 Cardio","block":"After","detail":"15–20 min","cue":"Safe today — no lifting within 6 hrs.","opt":false},{"name":"Mobility","day":"Zone 2 Cardio","block":"After","detail":"10 min","cue":"Use the sauna heat while the tissue is warm.","opt":false},{"name":"Rowing machine","day":"Upper Pull","block":"Warm-up","detail":"5 min","cue":"","opt":false},{"name":"Scapular pull-up","day":"Upper Pull","block":"Warm-up","detail":"2 × 10","cue":"Teaches the lats to fire before the arms do.","opt":false},{"name":"Weighted pull-up or lat pulldown","day":"Upper Pull","block":"Main","detail":"4 × 6–10 reps","cue":"Weighted pull-ups if you can hit 6 clean reps, pulldown if not.","opt":false},{"name":"Barbell row","day":"Upper Pull","block":"Main","detail":"4 × 8–10 reps","cue":"Torso around 45 degrees. Do not let it drift upright as the set gets hard.","opt":false},{"name":"Chest-supported row","day":"Upper Pull","block":"Main","detail":"3 × 10–12 reps","cue":"The chest pad removes the lower back from the equation.","opt":false},{"name":"Single-arm cable row","day":"Upper Pull","block":"Accessory","detail":"3 × 12 reps each side","cue":"Allow a full stretch at the front of each rep.","opt":false},{"name":"Face pull","day":"Upper Pull","block":"Accessory","detail":"3 × 15–20 reps","cue":"Direct insurance against three pressing sessions a week.","opt":false},{"name":"Incline DB curl","day":"Upper Pull","block":"Accessory","detail":"3 × 10–12 reps","cue":"Arms hanging behind the torso for the stretch.","opt":false},{"name":"Hammer curl","day":"Upper Pull","block":"Accessory","detail":"3 × 12–15 reps","cue":"Finish here.","opt":false},{"name":"Easy row or jog","day":"Conditioning Circuit","block":"Warm-up","detail":"6 min","cue":"","opt":false},{"name":"World's greatest stretch","day":"Conditioning Circuit","block":"Warm-up","detail":"6 each side","cue":"","opt":false},{"name":"KB swing","day":"Conditioning Circuit","block":"Circuit — 4 rounds","detail":"45 sec work / 15 sec rest","cue":"Hips drive the bell, arms are rope.","opt":false},{"name":"Sled push or DB thruster","day":"Conditioning Circuit","block":"Circuit — 4 rounds","detail":"45 sec work / 15 sec rest","cue":"Sled if the turf is free, thrusters if not.","opt":false},{"name":"Battle rope","day":"Conditioning Circuit","block":"Circuit — 4 rounds","detail":"45 sec work / 15 sec rest","cue":"Alternating waves.","opt":false},{"name":"Box step-up","day":"Conditioning Circuit","block":"Circuit — 4 rounds","detail":"45 sec work / 15 sec rest","cue":"Alternate legs, drive through the heel.","opt":false},{"name":"Medicine ball slam","day":"Conditioning Circuit","block":"Circuit — 4 rounds","detail":"45 sec work / 15 sec rest","cue":"Full overhead reach every rep.","opt":false},{"name":"Farmer carry","day":"Conditioning Circuit","block":"Circuit — 4 rounds","detail":"45 sec work / 15 sec rest","cue":"Ribs down, shoulders back. Then rest 2 min before the next round.","opt":false},{"name":"Meal 4","day":"Conditioning Circuit","block":"After","detail":"Before the chamber","cue":"Cold exposure slows gastric emptying and blood flow to the gut.","opt":true},{"name":"Cryotherapy","day":"Conditioning Circuit","block":"After","detail":"2–3 min","cue":"Never within 6 hrs of a lifting session.","opt":false},{"name":"Easy walk","day":"Active Recovery","block":"Session","detail":"30–45 min","cue":"Outside if the weather allows. This is circulation, not training.","opt":false},{"name":"Mobility flow","day":"Active Recovery","block":"Session","detail":"15 min","cue":"Hold each position 45 to 60 sec.","opt":false},{"name":"Food prep for the week","day":"Active Recovery","block":"After","detail":"60–90 min","cue":"The single highest-leverage 90 min of the week.","opt":true},{"name":"Weigh in and log","day":"Active Recovery","block":"After","detail":"2 min","cue":"Under Progress.","opt":true}];
+const KEY = "fited.videolinks.v1";
+
+let idx = 0;
+let links = {};
+
+/* ---------- storage ---------- */
+function load(){ try{ const v=localStorage.getItem(KEY); links = v?JSON.parse(v):{}; }catch(e){ links={}; } }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(links)); }catch(e){} }
+
+/* ---------- youtube id parsing ---------- */
+function parseId(raw){
+  if(!raw) return null;
+  const s = raw.trim();
+  if(/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  let m;
+  m = s.match(/[?&]v=([A-Za-z0-9_-]{11})/);      if(m) return m[1];
+  m = s.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);  if(m) return m[1];
+  m = s.match(/\/shorts\/([A-Za-z0-9_-]{11})/);   if(m) return m[1];
+  m = s.match(/\/embed\/([A-Za-z0-9_-]{11})/);    if(m) return m[1];
+  m = s.match(/\/live\/([A-Za-z0-9_-]{11})/);     if(m) return m[1];
+  return null;
+}
+function parseStart(raw){
+  const m = String(raw||"").match(/[?&#]t=(\d+h)?(\d+m)?(\d+)?s?/);
+  if(!m) return 0;
+  const h=parseInt(m[1]||0), mi=parseInt(m[2]||0), se=parseInt(m[3]||0);
+  return (h*3600)+(mi*60)+se || 0;
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ---------- progress ---------- */
+function counts(){
+  let done=0, skipped=0;
+  EXERCISES.forEach(e=>{
+    const r=links[e.name];
+    if(r && r.id) done++;
+    else if(r && r.skipped) skipped++;
+  });
+  return {done, skipped, total:EXERCISES.length};
+}
+function paintProgress(){
+  const c=counts();
+  const settled=c.done+c.skipped;
+  document.getElementById("count").textContent = c.done+" linked · "+settled+" of "+c.total;
+  document.getElementById("fill").style.width = (settled/c.total*100)+"%";
+}
+
+/* ---------- grid ---------- */
+function paintGrid(){
+  const g=document.getElementById("grid");
+  g.innerHTML = EXERCISES.map((e,i)=>{
+    const r=links[e.name];
+    let cls="dot";
+    if(r&&r.id) cls+=" done";
+    else if(r&&r.skipped) cls+=" skip";
+    if(i===idx) cls+=" here";
+    return '<button class="'+cls+'" data-i="'+i+'" title="'+esc(e.name)+'">'+(i+1)+'</button>';
+  }).join("");
+}
+
+/* ---------- main render ---------- */
+function render(){
+  const stage=document.getElementById("stage");
+
+  if(idx>=EXERCISES.length){ renderDone(); return; }
+  document.getElementById("jumpWrap").classList.remove("hide");
+
+  const e=EXERCISES[idx];
+  const cur=links[e.name]||{};
+  const q=encodeURIComponent(e.name+" proper form tutorial");
+
+  stage.innerHTML =
+    '<div class="crumb">'+esc(e.day)+' · '+esc(e.block)+'</div>'+
+    (e.opt?'<div class="optflag">Not a movement — skip if you like</div>':'')+
+    '<h2 class="exname">'+esc(e.name)+'</h2>'+
+    (e.detail?'<div class="meta">'+esc(e.detail)+'</div>':'')+
+    (e.cue?'<div class="cue">'+esc(e.cue)+'</div>':'')+
+    '<div class="card">'+
+      '<button class="btn ghost" id="searchBtn">Search YouTube for this</button>'+
+      '<div style="height:14px"></div>'+
+      '<label for="urlIn">Paste the video link</label>'+
+      '<input type="text" id="urlIn" inputmode="url" autocapitalize="off" autocorrect="off" '+
+        'spellcheck="false" placeholder="https://youtube.com/watch?v=..." value="'+esc(cur.url||"")+'">'+
+      '<div class="status wait" id="status"></div>'+
+      '<div class="frame" id="frame"></div>'+
+    '</div>'+
+    '<div class="nav">'+
+      '<button class="btn ghost" id="backBtn">Back</button>'+
+      '<button class="btn ghost" id="skipBtn">Skip</button>'+
+      '<button class="btn gold" id="nextBtn">Save &amp; next</button>'+
+    '</div>';
+
+  document.getElementById("searchBtn").onclick=()=>{
+    window.open("https://www.youtube.com/results?search_query="+q,"_blank");
+  };
+  const input=document.getElementById("urlIn");
+  input.addEventListener("input", ()=>preview(input.value));
+  document.getElementById("backBtn").onclick=()=>{ if(idx>0){idx--;render();} };
+  document.getElementById("skipBtn").onclick=()=>{
+    links[e.name]={skipped:true}; save(); idx++; render();
+  };
+  document.getElementById("nextBtn").onclick=()=>{
+    const v=input.value.trim();
+    if(!v){ links[e.name]={skipped:true}; }
+    else {
+      const id=parseId(v);
+      if(!id){ setStatus("err","That doesn't look like a YouTube link — check it and try again."); return; }
+      links[e.name]={id:id, url:v, start:parseStart(v)};
+    }
+    save(); idx++; render();
+  };
+
+  if(cur.url) preview(cur.url); else setStatus("wait","");
+  paintProgress(); paintGrid();
+  window.scrollTo(0,0);
+}
+
+function setStatus(kind,msg){
+  const s=document.getElementById("status");
+  if(!s) return;
+  s.className="status "+kind;
+  s.textContent=msg;
+}
+
+function preview(val){
+  const f=document.getElementById("frame");
+  if(!f) return;
+  const v=(val||"").trim();
+  if(!v){ f.classList.remove("on"); f.innerHTML=""; setStatus("wait",""); return; }
+  const id=parseId(v);
+  if(!id){ f.classList.remove("on"); f.innerHTML=""; setStatus("err","Not a recognized YouTube link yet."); return; }
+  const st=parseStart(v);
+  setStatus("ok","Link reads fine. Tap play below to confirm it embeds.");
+  f.classList.add("on");
+  f.innerHTML='<iframe src="https://www.youtube.com/embed/'+id+'?rel=0'+(st?'&start='+st:'')+
+    '" allow="accelerometer;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe>';
+}
+
+/* ---------- finish ---------- */
+function renderDone(){
+  document.getElementById("jumpWrap").classList.remove("hide");
+  const c=counts();
+  const payload=JSON.stringify(links);
+  document.getElementById("stage").innerHTML =
+    '<div class="done-panel">'+
+      '<div class="big">✓</div>'+
+      '<h2 class="exname" style="font-size:22px">All '+c.total+' reviewed</h2>'+
+      '<div class="meta">'+c.done+' linked · '+c.skipped+' skipped</div>'+
+    '</div>'+
+    '<div class="card">'+
+      '<label>Your links — copy this whole block and paste it back to me</label>'+
+      '<textarea id="out" readonly>'+esc(payload)+'</textarea>'+
+      '<button class="btn gold" id="copyBtn">Copy to clipboard</button>'+
+      '<button class="btn ghost" id="dlBtn">Download as a file</button>'+
+      '<div class="note">Paste this into our chat and I\'ll bake every link '+
+      'permanently into the Fit\'ed app. Your picks are also saved on this phone, '+
+      'so you can close this page and come back to it.</div>'+
+    '</div>'+
+    '<div class="nav"><button class="btn ghost" id="againBtn">Review from the start</button></div>';
+
+  document.getElementById("copyBtn").onclick=async()=>{
+    const t=document.getElementById("out");
+    try{ await navigator.clipboard.writeText(t.value); }
+    catch(e){ t.select(); document.execCommand("copy"); }
+    document.getElementById("copyBtn").textContent="Copied";
+    setTimeout(()=>{const b=document.getElementById("copyBtn"); if(b)b.textContent="Copy to clipboard";},1600);
+  };
+  document.getElementById("dlBtn").onclick=()=>{
+    const b=new Blob([payload],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(b); a.download="fited_video_links.json"; a.click();
+  };
+  document.getElementById("againBtn").onclick=()=>{ idx=0; render(); };
+  paintProgress(); paintGrid();
+  window.scrollTo(0,0);
+}
+
+/* ---------- grid + export/import wiring ---------- */
+document.getElementById("grid").addEventListener("click",ev=>{
+  const b=ev.target.closest("[data-i]"); if(!b) return;
+  idx=parseInt(b.dataset.i,10); render();
+});
+document.getElementById("exportBtn").onclick=()=>{ idx=EXERCISES.length; render(); };
+document.getElementById("importBtn").onclick=()=>{
+  const v=prompt("Paste a previously exported link block:");
+  if(!v) return;
+  try{
+    const o=JSON.parse(v.trim());
+    if(o && typeof o==="object"){ links=o; save(); idx=0; render(); }
+  }catch(e){ alert("That didn't parse as a saved link block."); }
+};
+
+/* ---------- start ---------- */
+load();
+const firstUnset = EXERCISES.findIndex(e=>!links[e.name]);
+idx = firstUnset === -1 ? 0 : firstUnset;
+render();
+</script>
+</body>
+</html>
