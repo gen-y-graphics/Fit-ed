@@ -1215,6 +1215,21 @@ function lastSession(name, exceptDate){
   return d.length?{date:d[0], sets:exLog(name)[d[0]]}:null;
 }
 function todaySets(name){ const s=exLog(name)[appToday()]; return s?s.slice():[]; }
+/* Saved data drops blank sets so history stays clean. The number of rows on screen
+   is tracked separately, otherwise adding an empty row would erase itself. */
+var ROWN={}, ROWNDAY=null;
+function rowsShown(name){
+  const d=appToday();
+  if(ROWNDAY!==d){ ROWN={}; ROWNDAY=d; }
+  const saved=todaySets(name).length;
+  const want=ROWN[name]||0;
+  return Math.max(1, saved, want);
+}
+function setRowsShown(name,n){
+  const d=appToday();
+  if(ROWNDAY!==d){ ROWN={}; ROWNDAY=d; }
+  ROWN[name]=Math.max(1, Math.min(30, n));
+}
 function writeSets(name, sets){
   const L=allLogs(), k=appToday();
   if(!L[name]) L[name]={};
@@ -1231,7 +1246,9 @@ function shortDate(iso){ const d=parseISO(iso); return DOW[d.getDay()].slice(0,3
 
 function logBlock(name, uid){
   const sets = todaySets(name);
-  const rows = sets.length?sets:[{w:"",r:""}];
+  const want = rowsShown(name);
+  const rows = [];
+  for(let ri=0; ri<want; ri++) rows.push(sets[ri]||{w:"",r:""});
   const prev = lastSession(name, appToday());
   let ph = {w:"",r:""};
   if(prev && prev.sets.length) ph = prev.sets[0];
@@ -2234,14 +2251,22 @@ document.addEventListener("click", e=>{
   }
   if((el=t("[data-addset]"))){
     const wrap=el.closest(".logwrap");
-    const rows=readRows(wrap); rows.push({w:"",r:""});
-    writeSets(wrap.getAttribute("data-ex"), rows);
-    repaintLog(wrap.getAttribute("data-uid")); return;
+    const nm=wrap.getAttribute("data-ex");
+    const rows=readRows(wrap);
+    writeSets(nm, rows);
+    setRowsShown(nm, rows.length+1);
+    repaintLog(wrap.getAttribute("data-uid"));
+    const box=document.querySelector('[data-uid="'+wrap.getAttribute("data-uid")+'"]');
+    if(box){ const ins=box.querySelectorAll('.setrow input[data-set="w"]');
+      if(ins.length) ins[ins.length-1].focus(); }
+    return;
   }
   if((el=t("[data-delset]"))){
     const wrap=el.closest(".logwrap");
+    const nm=wrap.getAttribute("data-ex");
     const rows=readRows(wrap); rows.splice(Number(el.dataset.delset),1);
-    writeSets(wrap.getAttribute("data-ex"), rows.length?rows:[]);
+    writeSets(nm, rows);
+    setRowsShown(nm, rows.length);
     repaintLog(wrap.getAttribute("data-uid")); return;
   }
   if((el=t("[data-rest]"))){
