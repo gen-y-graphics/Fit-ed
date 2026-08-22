@@ -311,6 +311,17 @@ button.demo{background:none;cursor:pointer;font-family:inherit}
 .bkmsg{font-size:12px;margin-top:9px;min-height:17px;line-height:1.45}
 .bkmsg.ok{color:var(--fit)} .bkmsg.err{color:#E0705F} .bkmsg.warn{color:var(--gold)}
 .bkfile{display:none}
+.cutgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:12px}
+.cutbtn{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:11px 4px;
+  color:var(--ink);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:center}
+.cutbtn.on{border-color:var(--gold);color:var(--gold);background:var(--panel)}
+.cutnow{font-size:12px;color:var(--muted);margin-top:11px;line-height:1.5}
+.cutnow b{color:var(--fit);font-weight:600}
+.graceband{display:flex;gap:9px;align-items:flex-start;background:var(--panel);
+  border:1px solid var(--golddim);border-radius:12px;padding:11px 13px;margin-bottom:14px}
+.graceband .gi{color:var(--gold);font-size:14px;line-height:1.3;flex:0 0 auto}
+.graceband .gt{font-size:12.5px;color:var(--ink);line-height:1.45}
+.graceband .gt b{color:var(--gold);font-weight:600}
 .bkwarn{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:10px;
   border-left:2px solid var(--line);padding-left:10px}
 
@@ -1084,7 +1095,7 @@ const THEMES = [
 /* ============================================================
    7. STATE + STORAGE
    ============================================================ */
-const LS = {theme:"fited.theme", start:"fited.start", chk:"fited.chk.", grocery:"fited.grocery", weights:"fited.weights", date:"fited.lastdate", prep:"fited.prep", log:"fited.log", rest:"fited.rest"};
+const LS = {theme:"fited.theme", start:"fited.start", chk:"fited.chk.", grocery:"fited.grocery", weights:"fited.weights", date:"fited.lastdate", prep:"fited.prep", log:"fited.log", rest:"fited.rest", cutoff:"fited.cutoff"};
 const $  = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const num = n => n.toLocaleString("en-US");
@@ -1105,12 +1116,31 @@ function fmtLong(d){ return `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYea
 function fmtShort(d){ return `${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`; }
 function startDate(){ return parseISO(get(LS.start, DEFAULT_START)); }
 function midnight(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+/* The program day does not flip at midnight. It flips at the cutoff hour, so a
+   session that runs past 12am still belongs to the day it started on. */
+const DEFAULT_CUTOFF = 4;
+function dayCutoff(){
+  const v = parseInt(get(LS.cutoff, String(DEFAULT_CUTOFF)), 10);
+  return isNaN(v) ? DEFAULT_CUTOFF : Math.max(0, Math.min(11, v));
+}
+function appNow(){ const d=new Date(); d.setHours(d.getHours()-dayCutoff()); return d; }
+function appToday(){ return isoOf(appNow()); }
+function cutoffLabel(hr){
+  if(hr===0) return "Midnight";
+  if(hr===12) return "Noon";
+  return (hr>12?hr-12:hr)+(hr<12?" AM":" PM");
+}
+function inGraceWindow(){
+  const c=dayCutoff();
+  if(c<=0) return false;
+  return new Date().getHours() < c;
+}
 function liveWeek(){
-  const diff = Math.floor((midnight(new Date()) - midnight(startDate()))/86400000);
+  const diff = Math.floor((midnight(appNow()) - midnight(startDate()))/86400000);
   return Math.min(34, Math.max(1, Math.floor(diff/7)+1));
 }
 function inProgram(){
-  const diff = Math.floor((midnight(new Date()) - midnight(startDate()))/86400000);
+  const diff = Math.floor((midnight(appNow()) - midnight(startDate()))/86400000);
   return diff>=0 && diff<238;
 }
 function weekStart(w){ return addDays(startDate(),(w-1)*7); }
@@ -1160,7 +1190,7 @@ function portionsFor(w,dow){
 function portionSummary(P,id){ return P[id].map(x=>`${x[0]==="—"?"":x[0]+" "}${x[1].split(" — ")[0]}`).join(" · "); }
 
 /* ---------- checkmarks: keyed to the calendar date, cleared when it changes ---------- */
-function ckKey(){ return LS.chk + isoOf(new Date()); }
+function ckKey(){ return LS.chk + appToday(); }
 function checks(){ return getJSON(ckKey(), {}); }
 function toggleCheck(k){ const c=checks(); c[k]=!c[k]; setJSON(ckKey(),c); purgeChecks(); }
 function purgeChecks(){
@@ -1184,9 +1214,9 @@ function lastSession(name, exceptDate){
   const d=logDates(name).filter(x=>x!==exceptDate);
   return d.length?{date:d[0], sets:exLog(name)[d[0]]}:null;
 }
-function todaySets(name){ const s=exLog(name)[isoOf(new Date())]; return s?s.slice():[]; }
+function todaySets(name){ const s=exLog(name)[appToday()]; return s?s.slice():[]; }
 function writeSets(name, sets){
-  const L=allLogs(), k=isoOf(new Date());
+  const L=allLogs(), k=appToday();
   if(!L[name]) L[name]={};
   const clean=sets.filter(s=>(s.w!==""&&s.w!=null)||(s.r!==""&&s.r!=null));
   if(clean.length) L[name][k]=clean; else delete L[name][k];
@@ -1202,7 +1232,7 @@ function shortDate(iso){ const d=parseISO(iso); return DOW[d.getDay()].slice(0,3
 function logBlock(name, uid){
   const sets = todaySets(name);
   const rows = sets.length?sets:[{w:"",r:""}];
-  const prev = lastSession(name, isoOf(new Date()));
+  const prev = lastSession(name, appToday());
   let ph = {w:"",r:""};
   if(prev && prev.sets.length) ph = prev.sets[0];
   let h2 = '<div class="logwrap" id="lw-'+uid+'" data-uid="'+uid+'" data-ex="'+esc(name)+'">';
@@ -1369,7 +1399,7 @@ function backupStats(obj){
   return {movements:movements, entries:sessions, days:days.size, weights:weights, first:first, last:last};
 }
 function backupFileName(){
-  const d=new Date();
+  const d=appNow();
   return "fited-backup-"+isoOf(d)+".json";
 }
 function doExport(mode){
@@ -1382,7 +1412,7 @@ function doExport(mode){
       a.href=u; a.download=backupFileName();
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(()=>URL.revokeObjectURL(u),1500);
-      set("fited.lastbackup", isoOf(new Date()));
+      set("fited.lastbackup", appToday());
       bkMsg("ok","Backup file saved. Keep it somewhere you can find later.");
     }catch(e){ bkMsg("err","This browser blocked the download. Use Copy instead."); }
     return;
@@ -1390,7 +1420,7 @@ function doExport(mode){
   const ta=$("bkOut"); if(ta){ ta.value=txt; }
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(txt).then(()=>{
-      set("fited.lastbackup", isoOf(new Date()));
+      set("fited.lastbackup", appToday());
       bkMsg("ok","Copied. Paste it into Notes, an email to yourself, anywhere safe.");
     }).catch(()=>{
       if(ta){ ta.focus(); ta.select(); }
@@ -1447,7 +1477,7 @@ function applyImport(){
 function lastBackupLine(){
   const lb=get("fited.lastbackup",null);
   if(!lb) return "No backup taken yet on this device.";
-  const d=parseISO(lb), n=new Date();
+  const d=parseISO(lb), n=appNow();
   const days=Math.round((new Date(n.getFullYear(),n.getMonth(),n.getDate())-d)/86400000);
   if(days<=0) return "Last backup: today.";
   if(days===1) return "Last backup: yesterday.";
@@ -1539,7 +1569,8 @@ function paintHeader(){
    9. RENDER — TODAY
    ============================================================ */
 function renderToday(){
-  const now=new Date(), dow=now.getDay(), dk=DKEY[dow];
+  const now=appNow(), dow=now.getDay(), dk=DKEY[dow];
+  const GRACE = inGraceWindow();
   const b=blockFor(state.week), sp=SPLIT[dow], tg=targetsFor(state.week,dow), P=portionsFor(state.week,dow);
   const isDeload = b.kind==="phase" && b.deload;
   const preview = state.week!==liveWeek();
@@ -1552,6 +1583,12 @@ function renderToday(){
   if(preview){
     h += `<div class="rule" style="margin-top:16px"><span class="eyebrow">Previewing Week ${state.week}</span>
       <p>Your live week is Week ${liveWeek()}. Tap <b>Live</b> in the header to snap back.</p></div>`;
+  }
+
+  if(GRACE){
+    h += `<div class="graceband"><div class="gi">&#9790;</div><div class="gt">
+      It is after midnight, so Fit\u2019ed is still on <b>${DOW[dow]}</b>. Anything you check or log
+      counts toward this session until <b>${esc(cutoffLabel(dayCutoff()))}</b>.</div></div>`;
   }
 
   h += `<h1 class="title">${DOW[dow]}</h1>
@@ -1630,7 +1667,7 @@ function renderTrain(){
   return trainDetail(state.trainDay);
 }
 function trainWeek(){
-  const b=blockFor(state.week), ws=weekStart(state.week), today=new Date();
+  const b=blockFor(state.week), ws=weekStart(state.week), today=appNow();
   let h=`<h1 class="title">Week ${state.week} training</h1>
     <p class="subtitle">${esc(b.label)} · ${esc(b.sub)} · six sessions and one active recovery day</p>`;
   if(b.kind==="phase" && b.deload)
@@ -1657,7 +1694,7 @@ function trainWeek(){
 function trainDetail(dow){
   const b=blockFor(state.week), sp=SPLIT[dow], dk=DKEY[dow];
   const isDeload = b.kind==="phase" && b.deload;
-  const isToday = new Date().getDay()===dow && state.week===liveWeek();
+  const isToday = appNow().getDay()===dow && state.week===liveWeek();
   const tg=targetsFor(state.week,dow);
   let h=`<div class="crumb"><button class="back" data-back="trainweek">← Week ${state.week}</button></div>
     <h1 class="title">${DOW[dow]}</h1>
@@ -1708,7 +1745,7 @@ function fuelSeg(){
   </div>`;
 }
 function fuelWeek(){
-  const b=blockFor(state.week), ws=weekStart(state.week), today=new Date();
+  const b=blockFor(state.week), ws=weekStart(state.week), today=appNow();
   let h = fuelSeg();
   h += `<h1 class="title">Week ${state.week} fuel</h1>
     <p class="subtitle">${esc(b.label)} · ${esc(b.sub)} · protein ${b.phase.protein} g every day</p>`;
@@ -1867,7 +1904,7 @@ function fuelPrep(){
       <span class="chip">${PREP_ELAPSED}</span>
     </div>`;
 
-  if(new Date().getDay()===0 && w===lw && lw<34)
+  if(appNow().getDay()===0 && w===lw && lw<34)
     h += `<button class="tap-card" style="margin-top:12px" data-prepweek="${lw+1}">
       <div class="mslot">Today is prep day</div>
       <div class="mname">Cook for Week ${lw+1}, not Week ${lw}</div>
@@ -1982,7 +2019,7 @@ function prepChecks(w){ return (getJSON(LS.prep,{})[prepKey(w)])||{}; }
 function togglePrepCheck(w,id){
   const s=getJSON(LS.prep,{}), k=prepKey(w);
   s[k]=s[k]||{}; s[k][id]=!s[k][id];
-  const cut=addDays(new Date(),-21);
+  const cut=addDays(appNow(),-21);
   Object.keys(s).forEach(key=>{ if(parseISO(key)<cut) delete s[key]; });
   setJSON(LS.prep,s);
 }
@@ -2001,7 +2038,7 @@ function renderProgress(){
   const prev = keys.slice(-14,-7).map(k=>weights[k]);
   const prevAvg = prev.length ? (prev.reduce((a,b)=>a+b,0)/prev.length) : null;
   const rate = (avg!==null && prevAvg!==null) ? (prevAvg-avg) : null;
-  const todayIso = isoOf(new Date());
+  const todayIso = appToday();
 
   let h=`<h1 class="title">Progress</h1>
     <p class="subtitle">The 7-day rolling average is the only weight number worth acting on.</p>
@@ -2092,6 +2129,28 @@ function renderSettings(){
       <p style="margin-top:10px">Live week right now: <b style="color:var(--gold)">Week ${liveWeek()}</b> · ${esc(blockFor(liveWeek()).label)}</p>
     </div>
 
+    <h2 class="sec">When the day rolls over</h2>
+    <div class="card">
+      <p class="body">Fit’ed does not flip to a new day at midnight. It flips at the hour you pick, so a late session that runs past 12am still logs against the day it started on. Checkmarks, your training log, and the weigh-in all follow this.</p>
+      <div class="cutgrid">
+        ${[0,2,3,4,5,6].map(function(hr){
+          return `<button class="cutbtn${dayCutoff()===hr?" on":""}" data-cut="${hr}">${esc(cutoffLabel(hr))}</button>`;
+        }).join("")}
+      </div>
+      ${(function(){
+        const c=dayCutoff();
+        const real=new Date(), shown=appNow();
+        const same=isoOf(real)===isoOf(shown);
+        let line;
+        if(c===0) line = "Set to midnight — standard calendar days. A 12:30am set logs against the new day.";
+        else line = "A workout finishing before <b>"+esc(cutoffLabel(c))+"</b> counts toward the day before.";
+        let extra = same
+          ? "Right now Fit’ed is on <b>"+esc(DOW[shown.getDay()])+", "+esc(fmtShort(shown))+"</b>."
+          : "It is past midnight, so Fit’ed is still on <b>"+esc(DOW[shown.getDay()])+", "+esc(fmtShort(shown))+"</b>.";
+        return `<div class="cutnow">${line}<br>${extra}</div>`;
+      })()}
+    </div>
+
     <h2 class="sec">Today's checkmarks</h2>
     <div class="card">
       <p class="body">Checkmarks clear on their own when the calendar date changes. Clear them early if you need to restart the day.</p>
@@ -2165,6 +2224,14 @@ document.addEventListener("click", e=>{
   }
   if((el=t("[data-ck]"))){ toggleCheck(el.dataset.ck); paint(false); return; }
   if((el=t("[data-hist]"))){ openHist(el.dataset.hist); return; }
+  if((el=t("[data-cut]"))){
+    const prevDay = appToday();
+    set(LS.cutoff, el.dataset.cut);
+    const newDay = appToday();
+    if(prevDay!==newDay){ set(LS.date,newDay); purgeChecks(); }
+    state.week = liveWeek(); buildWeekSelect();
+    paint(false); return;
+  }
   if((el=t("[data-addset]"))){
     const wrap=el.closest(".logwrap");
     const rows=readRows(wrap); rows.push({w:"",r:""});
@@ -2228,7 +2295,7 @@ document.addEventListener("click", e=>{
     if(a==="prepHide"){ state.prepHide=!state.prepHide; paint(false); }
     if(a==="saveWeight"){
       const v=parseFloat($("wIn").value);
-      if(!isNaN(v)&&v>0){ const w=getJSON(LS.weights,{}); w[isoOf(new Date())]=Math.round(v*10)/10; setJSON(LS.weights,w); }
+      if(!isNaN(v)&&v>0){ const w=getJSON(LS.weights,{}); w[appToday()]=Math.round(v*10)/10; setJSON(LS.weights,w); }
       paint(false);
     }
     return;
@@ -2293,7 +2360,7 @@ function applyTheme(id){
 
 /* ---------- date rollover ---------- */
 function checkDateRollover(){
-  const stored=get(LS.date,null), today=isoOf(new Date());
+  const stored=get(LS.date,null), today=appToday();
   if(stored!==today){
     set(LS.date,today); purgeChecks();
     const lw=liveWeek();
@@ -2307,7 +2374,7 @@ setInterval(checkDateRollover, 60000);
 
 /* ---------- init ---------- */
 applyTheme(get(LS.theme,"midnight"));
-set(LS.date, isoOf(new Date()));
+set(LS.date, appToday());
 purgeChecks();
 state.week = liveWeek();
 buildWeekSelect();
